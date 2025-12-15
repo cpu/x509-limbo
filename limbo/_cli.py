@@ -229,6 +229,8 @@ def _regression(args: argparse.Namespace) -> None:
             )
 
     if os.getenv("GITHUB_ACTIONS"):
+        is_fork = _github.is_fork_pr()
+
         if all_regressions:
             sampled_regressions = _sample_regressions(all_regressions)
 
@@ -238,22 +240,32 @@ def _regression(args: argparse.Namespace) -> None:
                     sampled_regressions=sampled_regressions, testcase_link=_markdown.testcase_link
                 )
             )
-            template = _markdown.template("regressions.md")
-            _github.comment(
-                template.render(regressions_url=_github.workflow_url()), update="@@regressions@@"
-            )
-            _github.label(add=[_github.REGRESSIONS_LABEL], remove=[_github.NO_REGRESSIONS_LABEL])
-        else:
-            # Avoid spamming the user with "no regression" comments.
-            if not _github.has_label(_github.NO_REGRESSIONS_LABEL):
-                _github.comment(":shipit: No regressions found.", update="@@regressions@@")
-                _github.label(
-                    add=[_github.NO_REGRESSIONS_LABEL], remove=[_github.REGRESSIONS_LABEL]
-                )
 
-        if new_results:
+            if not is_fork:
+                template = _markdown.template("regressions.md")
+                _github.comment(
+                    template.render(regressions_url=_github.workflow_url()), update="@@regressions@@"
+                )
+                _github.label(add=[_github.REGRESSIONS_LABEL], remove=[_github.NO_REGRESSIONS_LABEL])
+            else:
+                logger.info("Skipping PR comment/label for fork PR; see job output for regressions")
+        else:
+            if not is_fork:
+                # Avoid spamming the user with "no regression" comments.
+                if not _github.has_label(_github.NO_REGRESSIONS_LABEL):
+                    _github.comment(":shipit: No regressions found.", update="@@regressions@@")
+                    _github.label(
+                        add=[_github.NO_REGRESSIONS_LABEL], remove=[_github.REGRESSIONS_LABEL]
+                    )
+            else:
+                logger.info("Skipping PR comment/label for fork PR; no regressions detected")
+
+        if new_results and not is_fork:
             template = _markdown.template("new-testcases.md")
             _github.comment(template.render(new_results=new_results), update="@@new-testcases@@")
+
+    if all_regressions:
+        sys.exit(1)
 
 
 def _sample_regressions(

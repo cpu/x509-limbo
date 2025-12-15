@@ -157,6 +157,20 @@ def has_label(label: str) -> bool:
     return any(lbl["name"] == label for lbl in labels)
 
 
+def is_fork_pr() -> bool:
+    """
+    Returns True if the current PR is from a fork.
+    """
+    event = github_event()
+    if "pull_request" not in event:
+        raise ValueError("wrong GitHub event: need pull_request")
+
+    pr = event["pull_request"]
+    base_repo = pr["base"]["repo"]["full_name"]
+    head_repo = pr["head"]["repo"]["full_name"]
+    return base_repo != head_repo
+
+
 @cache
 def workflow_url() -> str:
     url = os.getenv("GITHUB_SERVER_URL")
